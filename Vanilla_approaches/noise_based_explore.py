@@ -1,31 +1,11 @@
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import random
+import os
 from collections import deque
-
-# --------------------- Dummy Continuous Environment ---------------------
-class DummyEnv:
-    def __init__(self):
-        self.state_dim = 3
-        self.action_dim = 2
-        self.max_action = 1.0
-        self.reset()
-
-    def reset(self):
-        self.state = np.random.uniform(-1, 1, self.state_dim)
-        return self.state
-
-    def step(self, action):
-        noise = np.random.normal(0, 0.01, self.state_dim)
-        next_state = self.state.copy()
-        next_state[:self.action_dim] += 0.1 * action
-        next_state += noise
-        reward = -np.sum(action**2)
-        done = np.random.rand() > 0.95
-        self.state = next_state
-        return next_state, reward, done
+import random
 
 # --------------------- Ornstein-Uhlenbeck Noise ---------------------
 class OrnsteinUhlenbeckNoise:
@@ -130,7 +110,6 @@ class DDPGAgent:
 
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(batch_size)
 
-        # Compute target Q value
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_Q = self.critic_target(next_states, next_actions)
@@ -148,30 +127,65 @@ class DDPGAgent:
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        # Soft update target networks
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-# --------------------- Training ---------------------
-env = DummyEnv()
-agent = DDPGAgent(env.state_dim, env.action_dim, env.max_action)
+# --------------------- Noisy Observation Wrapper ---------------------
+class NoisyObsWrapper(gym.ObservationWrapper):
+    def __init__(self, env, noise_scale=5.0):
+        super().__init__(env)
+        self.noise_scale = noise_scale
 
-episodes = 100
-for ep in range(episodes):
-    state = env.reset()
-    agent.noise.reset()
-    total_reward = 0
-    done = False
+    def observation(self, obs):
+        noise = np.random.normal(0, self.noise_scale, size=obs.shape)
+        return obs 
 
-    while not done:
-        action = agent.select_action(state)
-        next_state, reward, done = env.step(action)
-        agent.replay_buffer.push(state, action, reward, next_state, done)
-        state = next_state
-        total_reward += reward
-        agent.train()
+# --------------------- Main Training ---------------------
+def main():
+    import random
+    random.seed(0)
+    np.random.seed(0)
+    torch.manual_seed(0)
 
-    print(f"Episode {ep}, Total Reward: {total_reward:.2f}")
+    env = gym.make("Pendulum-v1")
+    env = NoisyObsWrapper(env, noise_scale=5.0)
+
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    max_action = float(env.action_space.high[0])
+
+    agent = DDPGAgent(state_dim, action_dim, max_action)
+
+    episodes = 250
+    reward_log = []
+
+    for ep in range(episodes):
+        state, _ = env.reset()
+        agent.noise.reset()
+        total_reward = 0
+        done = False
+
+        while not done:
+            action = agent.select_action(state)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+
+            agent.replay_buffer.push(state, action, reward, next_state, float(done))
+            state = next_state
+            total_reward += reward
+            agent.train()
+
+        reward_log.append(total_reward)
+
+        if (ep + 1) % 10 == 0:
+            print(f"Episode {ep + 1}, Total Reward: {total_reward:.2f}")
+
+    os.makedirs("logs", exist_ok=True)
+    np.save("logs/ddpg_noisy_pendulum_rewards.npy", np.array(reward_log))
+    print("Saved to logs/ddpg_noisy_pendulum_rewards.npy")
+
+if __name__ == "__main__":
+    main()
