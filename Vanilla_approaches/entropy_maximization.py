@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import random
+from seed_set import SeedSetter
 
 class EntropyQAgent:
     def __init__(self, state_dim, n_actions, lr=0.1, discount=0.99, eps=1.0,
@@ -54,7 +55,7 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 
     def observation(self, obs):
         noise = np.random.normal(0, self.noise_scale, size=obs.shape)
-        return obs + noise
+        return obs + noise 
 
 # ---------- Discretization ----------
 def create_bins():
@@ -74,7 +75,11 @@ def flatten_state(state_idx, shape):
 
 # ---------- Training Loop ----------
 def train_entropy_q_learning(episodes=250):
+    seed = 42
+    seeder = SeedSetter(seed)
+
     env = gym.make("Pendulum-v1")
+    seeder.apply_to_env(env)    
     env = NoisyObsWrapper(env, noise_scale=5.0)
     obs_bins, action_bins = create_bins()
 

@@ -3,11 +3,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from gymnasium import Wrapper
-import os
+from seed_set import SeedSetter
 
 # ---------- RND Network ----------
 class RNDModel(nn.Module):
@@ -100,7 +101,10 @@ def plot_rewards(total, extrinsic, intrinsic):
 
 # ---------- Main Training ----------
 def main():
+    seed = 42
+    seeder = SeedSetter(seed)
     env = gym.make("Pendulum-v1")
+    seeder.apply_to_env(env)
     obs_dim = env.observation_space.shape[0]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

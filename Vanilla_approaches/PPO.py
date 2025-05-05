@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from seed_set import SeedSetter
+
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
@@ -48,7 +50,10 @@ def plot_rewards(reward_list):
 
 # ---------- Main Training ----------
 def main():
+    seed = 42
+    seeder = SeedSetter(seed)
     env = gym.make("Pendulum-v1")
+    seeder.apply_to_env(env)
     env = NoisyObsWrapper(env, noise_scale=5.0)  # Match RND noise scale
     monitored_env = RewardMonitor(env)
 

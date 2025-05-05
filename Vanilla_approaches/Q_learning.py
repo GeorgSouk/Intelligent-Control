@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from seed_set import SeedSetter
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
@@ -15,7 +16,11 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 
 # ---------- Q-learning on Noisy Pendulum-v1 ----------
 def run_q_learning_noisy_pendulum(episodes=250):
+    seed = 42
+    seeder = SeedSetter(seed)
+
     env = gym.make("Pendulum-v1")
+    seeder.apply_to_env(env)
     env = NoisyObsWrapper(env, noise_scale=5.0)
 
     action_bins = np.linspace(-2.0, 2.0, 5)  # Discretized actions

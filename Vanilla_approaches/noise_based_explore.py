@@ -4,8 +4,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
-from collections import deque
 import random
+from collections import deque
+from seed_set import SeedSetter
 
 # --------------------- Ornstein-Uhlenbeck Noise ---------------------
 class OrnsteinUhlenbeckNoise:
@@ -145,12 +146,11 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 
 # --------------------- Main Training ---------------------
 def main():
-    import random
-    random.seed(0)
-    np.random.seed(0)
-    torch.manual_seed(0)
+    seed = 42
+    seeder = SeedSetter(seed)
 
     env = gym.make("Pendulum-v1")
+    seeder.apply_to_env(env)
     env = NoisyObsWrapper(env, noise_scale=5.0)
 
     state_dim = env.observation_space.shape[0]
