@@ -141,7 +141,7 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 
     def observation(self, obs):
         noise = np.random.normal(0, self.noise_scale, size=obs.shape)
-        return obs 
+        return obs + noise
 
 # --------------------- Main Training ---------------------
 def main():

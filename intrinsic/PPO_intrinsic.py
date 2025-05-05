@@ -56,7 +56,7 @@ class RNDWrapper(Wrapper):
 
         obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
         noise = torch.randn_like(obs_tensor) * 5.0
-        obs_tensor_noisy = obs_tensor 
+        obs_tensor_noisy = obs_tensor + noise
 
         with torch.no_grad():
             target_feature = self.rnd_target(obs_tensor)
