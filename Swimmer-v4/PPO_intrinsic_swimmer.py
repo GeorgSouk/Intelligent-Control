@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from gymnasium.wrappers import TimeLimit
+from gymnasium import Wrapper
 
 # ---------- RND Model ----------
 class RNDModel(nn.Module):
@@ -28,8 +29,6 @@ class RNDModel(nn.Module):
                 nn.init.zeros_(m.bias)
 
 # ---------- RND Wrapper ----------
-from gymnasium import Wrapper
-
 class RNDWrapper(Wrapper):
     def __init__(self, env, rnd_target, rnd_predictor, optimizer, initial_beta=0.1, final_beta=0.05, decay_rate=1e-5):
         super().__init__(env)
@@ -59,9 +58,7 @@ class RNDWrapper(Wrapper):
         self.reset_rewards()
         self.episode_count += 1
 
-        # Reset RND predictor every 100 episodes
-        if self.episode_count % 100 == 0:
-            print(f"🔄 Resetting RND predictor at episode {self.episode_count}")
+        if self.episode_count % 50 == 0:
             self.rnd_predictor.apply(self.rnd_predictor._init_weights)
 
         return obs, info
@@ -80,7 +77,6 @@ class RNDWrapper(Wrapper):
 
         intrinsic_reward = torch.mean((predicted_feature - target_feature) ** 2).item()
 
-        # Delayed step-based decay of beta
         if self.total_steps < 40000:
             beta = self.initial_beta
         else:
@@ -91,21 +87,21 @@ class RNDWrapper(Wrapper):
         loss.backward()
         self.optimizer.step()
 
-        total_reward = extrinsic_reward + beta * intrinsic_reward
+        usage_bonus = 0.01 * np.sum(np.abs(action))
+        joint_balance_bonus = -0.05 * np.abs(np.abs(action[0]) - np.abs(action[1]))
+        total_reward = extrinsic_reward + beta * intrinsic_reward + usage_bonus + joint_balance_bonus
 
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
         self.current_intrinsic += intrinsic_reward
 
         if done:
-            print(f"📏 Episode {self.episode_count} ended after {self.current_steps} steps.")
             self.episode_rewards.append(self.current_episode_reward)
             self.extrinsic_rewards.append(self.current_extrinsic)
             self.intrinsic_rewards.append(self.current_intrinsic)
 
         return obs, total_reward, terminated, truncated, info
 
-# ---------- Plotting ----------
 def plot_rewards(total, extrinsic, intrinsic):
     plt.figure(figsize=(10, 5))
     plt.plot(total, label="Total Reward")
@@ -113,13 +109,12 @@ def plot_rewards(total, extrinsic, intrinsic):
     plt.plot(intrinsic, label="Intrinsic Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.title("Training Progress with RND (Improved)")
+    plt.title("Training Progress with RND")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.show()
 
-# ---------- Main Training ----------
 def main():
     env = TimeLimit(gym.make("Swimmer-v4"), max_episode_steps=1500)
     obs_dim = env.observation_space.shape[0]
@@ -136,7 +131,7 @@ def main():
     vec_env = DummyVecEnv([lambda: base_env])
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
-    model = PPO("MlpPolicy", vec_env, verbose=1, learning_rate=6e-4, n_steps=4096, batch_size=256, n_epochs=20)
+    model = PPO("MlpPolicy", vec_env, verbose=1, learning_rate=6e-4, n_steps=4096, batch_size=256, n_epochs=20, ent_coef=0.01)
     model.learn(total_timesteps=300_000)
 
     model.save("ppo_rnd_swimmer")
@@ -148,7 +143,7 @@ def main():
     np.save("logs/ppo_rnd_total_rewards.npy", np.array(base_env.episode_rewards))
     np.save("logs/ppo_rnd_extrinsic_rewards.npy", np.array(base_env.extrinsic_rewards))
     np.save("logs/ppo_rnd_intrinsic_rewards.npy", np.array(base_env.intrinsic_rewards))
-    print("✅ Training complete. Saved model and reward logs.")
+    print("Training complete. Saved model and reward logs.")
 
 if __name__ == "__main__":
     main()

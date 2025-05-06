@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import random
+import matplotlib.pyplot as plt
 from collections import deque
 from seed_set import SeedSetter
 
@@ -173,6 +174,13 @@ def main():
     os.makedirs("logs", exist_ok=True)
     np.save("logs/ddpg_noisy_pendulum_rewards.npy", np.array(reward_log))
     print("Saved to logs/ddpg_noisy_pendulum_rewards.npy")
+
+    plt.plot(reward_log)
+    plt.xlabel("Episode")
+    plt.ylabel("Total Reward")
+    plt.title("DDPG with Noisy Observations - Reward Curve")
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
     main()
