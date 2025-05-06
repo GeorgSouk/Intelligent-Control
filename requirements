@@ -1,0 +1,4 @@
+pip install numpy matplotlib torch
+pip install gymnasium[classic-control]
+pip install pygame
+pip install stable-baselines3[extra]
