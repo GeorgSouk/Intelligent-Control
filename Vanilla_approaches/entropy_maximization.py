@@ -49,7 +49,7 @@ class EntropyQAgent:
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
-    def __init__(self, env, noise_scale=5.0):
+    def __init__(self, env, noise_scale=0.5):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -60,9 +60,9 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 # ---------- Discretization ----------
 def create_bins():
     obs_bins = [
-        np.linspace(-1.0, 1.0, 10),   # cos(theta)
-        np.linspace(-1.0, 1.0, 10),   # sin(theta)
-        np.linspace(-8.0, 8.0, 10)    # theta_dot
+        np.linspace(-1.0, 1.0, 10),   
+        np.linspace(-1.0, 1.0, 10),   
+        np.linspace(-8.0, 8.0, 10)    
     ]
     action_bins = np.linspace(-2.0, 2.0, 5)  # Discretized actions
     return obs_bins, action_bins
@@ -74,13 +74,13 @@ def flatten_state(state_idx, shape):
     return state_idx[0] * shape[1] * shape[2] + state_idx[1] * shape[2] + state_idx[2]
 
 # ---------- Training Loop ----------
-def train_entropy_q_learning(episodes=250):
+def train_entropy_q_learning(episodes=500):
     seed = 42
     seeder = SeedSetter(seed)
 
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)    
-    env = NoisyObsWrapper(env, noise_scale=5.0)
+    env = NoisyObsWrapper(env, noise_scale=0.5)
     obs_bins, action_bins = create_bins()
 
     state_shape = tuple(len(b) for b in obs_bins)
@@ -118,7 +118,7 @@ def train_entropy_q_learning(episodes=250):
 
 # ---------- Main ----------
 def main():
-    rewards = train_entropy_q_learning(episodes=250)
+    rewards = train_entropy_q_learning(episodes=500)
 
     os.makedirs("logs", exist_ok=True)
     np.save("logs/entropy_q_learning_noisy_pendulum_rewards.npy", np.array(rewards))

@@ -8,23 +8,6 @@ import random
 from collections import deque
 from seed_set import SeedSetter
 
-# --------------------- Ornstein-Uhlenbeck Noise ---------------------
-class OrnsteinUhlenbeckNoise:
-    def __init__(self, size, mu=0.0, theta=0.15, sigma=0.2):
-        self.size = size
-        self.mu = mu
-        self.theta = theta
-        self.sigma = sigma
-        self.state = np.ones(self.size) * self.mu
-
-    def reset(self):
-        self.state = np.ones(self.size) * self.mu
-
-    def sample(self):
-        dx = self.theta * (self.mu - self.state) + self.sigma * np.random.randn(self.size)
-        self.state += dx
-        return self.state
-
 # --------------------- Replay Buffer ---------------------
 class ReplayBuffer:
     def __init__(self, max_size=100000):
@@ -94,15 +77,20 @@ class DDPGAgent:
 
         self.max_action = max_action
         self.replay_buffer = ReplayBuffer()
-        self.noise = OrnsteinUhlenbeckNoise(action_dim)
         self.gamma = 0.99
         self.tau = 0.005
 
+    def add_parameter_noise(self, stddev=0.5):
+        for param, param_target in zip(self.actor.parameters(), self.actor_target.parameters()):
+            if param.requires_grad:
+                noise = torch.normal(0, stddev, size=param.data.size())
+                param.data.copy_(param_target.data + noise)
+
     def select_action(self, state, explore=True):
         state_tensor = torch.FloatTensor(state.reshape(1, -1))
-        action = self.actor(state_tensor).detach().numpy()[0]
         if explore:
-            action += self.noise.sample()
+            self.add_parameter_noise(stddev=0.1)
+        action = self.actor(state_tensor).detach().numpy()[0]
         return np.clip(action, -self.max_action, self.max_action)
 
     def train(self, batch_size=64):
@@ -136,7 +124,7 @@ class DDPGAgent:
 
 # --------------------- Noisy Observation Wrapper ---------------------
 class NoisyObsWrapper(gym.ObservationWrapper):
-    def __init__(self, env, noise_scale=5.0):
+    def __init__(self, env, noise_scale=0.5):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -151,7 +139,7 @@ def main():
 
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)
-    env = NoisyObsWrapper(env, noise_scale=5.0)
+    env = NoisyObsWrapper(env, noise_scale=0.5)
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -164,7 +152,6 @@ def main():
 
     for ep in range(episodes):
         state, _ = env.reset()
-        agent.noise.reset()
         total_reward = 0
         done = False
 

@@ -6,7 +6,7 @@ from seed_set import SeedSetter
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
-    def __init__(self, env, noise_scale=5.0):
+    def __init__(self, env, noise_scale=0.5):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -15,21 +15,21 @@ class NoisyObsWrapper(gym.ObservationWrapper):
         return obs + noise
 
 # ---------- Q-learning on Noisy Pendulum-v1 ----------
-def run_q_learning_noisy_pendulum(episodes=250):
+def run_q_learning_noisy_pendulum(episodes=500):
     seed = 42
     seeder = SeedSetter(seed)
 
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)
-    env = NoisyObsWrapper(env, noise_scale=5.0)
+    env = NoisyObsWrapper(env, noise_scale=0.5)
 
     action_bins = np.linspace(-2.0, 2.0, 5)  # Discretized actions
     n_actions = len(action_bins)
 
     obs_bins = [
-        np.linspace(-1.0, 1.0, 10),   # cos(theta)
-        np.linspace(-1.0, 1.0, 10),   # sin(theta)
-        np.linspace(-8.0, 8.0, 10)    # theta_dot
+        np.linspace(-1.0, 1.0, 10),  
+        np.linspace(-1.0, 1.0, 10),   
+        np.linspace(-8.0, 8.0, 10)    
     ]
 
     def discretize_obs(obs):
@@ -87,7 +87,7 @@ def plot_rewards(rewards):
 # ---------- Main ----------
 def main():
     print("Running Q-learning on Noisy Pendulum-v1...")
-    rewards = run_q_learning_noisy_pendulum(episodes=250)
+    rewards = run_q_learning_noisy_pendulum(episodes=500)
 
     os.makedirs("logs", exist_ok=True)
     np.save("logs/q_learning_noisy_pendulum_rewards.npy", np.array(rewards))
