@@ -121,7 +121,7 @@ def plot_rewards(total, extrinsic, intrinsic):
 
 # ---------- Main Training ----------
 def main():
-    env = TimeLimit(gym.make("Swimmer-v4"), max_episode_steps=1500)
+    env = TimeLimit(gym.make("CartPole-v1"), max_episode_steps=20_00)
     obs_dim = env.observation_space.shape[0]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

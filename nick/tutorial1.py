@@ -11,7 +11,7 @@ ROLLOUT = 2048           # PPO default – keep n_steps*n_envs ≈ 2 k
 if __name__ == "__main__":      # required for Subproc on Windows
     vec_env = make_vec_env(
         "Humanoid-v5",  # or any other env
-        n_envs=N_ENVS,
+        n_envs = N_ENVS,
         vec_env_cls=SubprocVecEnv,   # swap for DummyVecEnv if IO-bound
         seed=0,
     )

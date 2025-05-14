@@ -1,27 +1,55 @@
-import gymnasium as gym
+# tutorial2.py
+import multiprocessing as mp
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
-from rnd_reward_wrapper import RNDRewardWrapper  # uses the new MLP networks
+from pathlib import Path
 
-N_ENVS = 16
-BASE_ENV = "CartPole-v1"           # any low-dim env; no pixels needed
+def main() -> None:
+    ENV_ID, N_ENVS = "CartPole-v1", 2**3      
+    ROLLOUT = 512                        # total steps per update
+    N_STEPS = ROLLOUT // N_ENVS             # steps per env (must be ≥1)
+    TOTAL_STEPS, LOOPS = 20_000, 20
+    DEVICE = "cuda"                         # or "cpu"
 
-vec_env = make_vec_env(
-    "Humanoid-v5",
-    n_envs=8,
-    wrapper_class=RNDRewardWrapper,                      # <- add wrapper here
-    wrapper_kwargs=dict(beta=0.5, lr=1e-4),             # extra args for RND
-    vec_env_cls=SubprocVecEnv,                           # or DummyVecEnv
-    seed=0,
-)
-vec_env = RNDRewardWrapper(vec_env, beta=0.5, lr=1e-4)  # curiosity on
+    models_dir = Path(f"nick/model_parameters/PPO_{ENV_ID}")
+    logs_dir   = Path(f"nick/model_logs/PPO_{ENV_ID}")
+    models_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True,  exist_ok=True)
 
-model = PPO(
-    "MlpPolicy",
-    vec_env,
-    verbose=1,
-    n_steps=2048 // N_ENVS,
-    device="cuda"
-)
-model.learn(total_timesteps=500_000)
+    vec_env = make_vec_env(
+        ENV_ID,
+        n_envs      = N_ENVS,
+        vec_env_cls = SubprocVecEnv,
+        seed        = 0,
+    )
+
+    model = PPO(
+        "MlpPolicy",
+        vec_env,
+        n_steps         = N_STEPS,
+        tensorboard_log = str(logs_dir),
+        device          = DEVICE,
+        verbose         = 1,
+    )
+
+    for loop in range(1, LOOPS + 1):
+        model.learn(
+            total_timesteps     = TOTAL_STEPS,
+            reset_num_timesteps = False,
+            progress_bar        = True,
+        )
+        # if loop % 2 == 0:
+        ckpt = models_dir / f"ppo_{ENV_ID}.zip"
+        model.save(ckpt)
+        print(f"[✓] saved → {ckpt}")
+        print(f"loop{loop}")
+       
+
+    vec_env.close()
+
+if __name__ == "__main__":
+    # Choose the safest start method for your OS
+    # mp.set_start_method("spawn", force=True)   # Windows/macOS
+    mp.set_start_method("fork",  force=True) # Linux (faster, but be careful)
+    main()
