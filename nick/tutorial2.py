@@ -1,44 +1,55 @@
-import gymnasium as gym
-from stable_baselines3 import A2C,PPO
+# tutorial2.py
+import multiprocessing as mp
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv   # or DummyVecEnv
-from stable_baselines3.common.evaluation import evaluate_policy
-import os
+from pathlib import Path
 
-MODEL = PPO
+def main() -> None:
+    ENV_ID, N_ENVS = "Humanoid-v5", 2**3      
+    ROLLOUT = 2048                        # total steps per update
+    N_STEPS = ROLLOUT // N_ENVS             # steps per env (must be ≥1)
+    TOTAL_STEPS, LOOPS = 5_000_000, 10
+    DEVICE = "cuda"                         # or "cpu"
 
-N_ENVS = 8              # how many CartPoles you want in parallel
-TOTAL_STEPS = 600_000    # total gradient steps across *all* envs
-ROLLOUT = 2048    
+    models_dir = Path("nick/model_parameters/PPO")
+    logs_dir   = Path("nick/model_logs/PPO")
+    models_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True,  exist_ok=True)
 
-models_dir = f"nick/model_parameters/{MODEL.__name__}"
-print(models_dir)
-if not os.path.exists(models_dir):
-    os.makedirs(models_dir)
-
-logs_dir = f"nick/model_logs/{MODEL.__name__}"
-if not os.path.exists(logs_dir):
-    os.makedirs(logs_dir)
-
-# Initialise the environment
-vec_env = make_vec_env(
-        "Humanoid-v5",  # or any other env
-        n_envs = N_ENVS,
-        vec_env_cls = SubprocVecEnv,   # swap for DummyVecEnv if IO-bound
-        seed = 0,
-
+    vec_env = make_vec_env(
+        ENV_ID,
+        n_envs      = N_ENVS,
+        vec_env_cls = SubprocVecEnv,
+        seed        = 0,
     )
-model = MODEL(
+
+    model = PPO(
         "MlpPolicy",
         vec_env,
-        device="cuda",            # or "cpu"
-        n_steps=ROLLOUT // N_ENVS,
-        verbose=1,
+        n_steps         = N_STEPS,
+        tensorboard_log = str(logs_dir),
+        device          = DEVICE,
+        verbose         = 1,
     )
-# Initialise Model
 
-model.learn(total_timesteps=TOTAL_STEPS,reset_num_timesteps=False)
-# for i in range(50):
-    # model.save(f"{models_dir}/model_params")
+    for loop in range(1, LOOPS + 1):
+        model.learn(
+            total_timesteps     = TOTAL_STEPS,
+            reset_num_timesteps = False,
+            progress_bar        = True,
+        )
+        # if loop % 2 == 0:
+        ckpt = models_dir / f"ppo_{ENV_ID}.zip"
+        model.save(ckpt)
+        print(f"[✓] saved → {ckpt}")
+        print(f"loop{loop}")
+       
 
-vec_env.close()
+    vec_env.close()
+
+if __name__ == "__main__":
+    # Choose the safest start method for your OS
+    # mp.set_start_method("spawn", force=True)   # Windows/macOS
+    mp.set_start_method("fork",  force=True) # Linux (faster, but be careful)
+    main()
