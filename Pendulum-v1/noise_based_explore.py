@@ -142,11 +142,17 @@ class DDPGAgent:
         self.gamma = 0.99  # Discount factor
         self.tau = 0.005   # Soft update factor
 
-    def add_parameter_noise(self, stddev=0.5):
+    def add_parameter_noise(self, stddev=0.5,delta = 0.6,alpha = 1.01):
         """Apply parameter noise to the actor target network for exploration."""
         for param, param_target in zip(self.actor.parameters(), self.actor_target.parameters()):
             if param.requires_grad:
                 noise = torch.normal(0, stddev, size=param.data.size(), device=device)
+                d = torch.norm(noise).item()
+                if d > delta:
+                    noise = noise / alpha
+                else:
+                    noise = noise * alpha
+                # print(f"alpha {alpha}, delta {delta}, d {d}")
                 param.data.copy_(param_target.data + noise)
 
     def select_action(self, state, explore=True):
@@ -160,7 +166,7 @@ class DDPGAgent:
         """
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
         if explore:
-            self.add_parameter_noise(stddev=0.1)
+            self.add_parameter_noise(stddev=0.01)
         action = self.actor(state_tensor).cpu().detach().numpy()[0]
         return np.clip(action, -self.actor.max_action, self.actor.max_action)
 
@@ -204,7 +210,7 @@ class NoisyObsWrapper(gym.ObservationWrapper):
     """
     Gymnasium wrapper that adds Gaussian noise to observations for robustness testing.
     """
-    def __init__(self, env, noise_scale=0.5):
+    def __init__(self, env, noise_scale=0.1):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -222,7 +228,7 @@ def main():
     # Initialize environment with noisy observations
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)
-    env = NoisyObsWrapper(env, noise_scale=0.5)
+    env = NoisyObsWrapper(env, noise_scale=0.01)
 
     # Extract environment dimensions
     state_dim = env.observation_space.shape[0]
