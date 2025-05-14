@@ -73,6 +73,7 @@ class DDPGAgent:
         self.critic_target = Critic(state_dim, action_dim)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
+        self.perturbed_actor = Actor(state_dim, action_dim, max_action)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=1e-4)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
 
@@ -81,18 +82,45 @@ class DDPGAgent:
         self.gamma = 0.99
         self.tau = 0.005
 
-    def add_parameter_noise(self, stddev=0.5):
-        for param, param_target in zip(self.actor.parameters(), self.actor_target.parameters()):
-            if param.requires_grad:
-                noise = torch.normal(0, stddev, size=param.data.size())
-                param.data.copy_(param_target.data + noise)
+    def perturb_actor(self, stddev=0.5,delta = 0.6,alpha = 1.01):
+        with torch.no_grad():
+            total_distance = 0.0
+            for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
+                total_distance += torch.norm(param.data - target_param.data).item() ** 2
+            total_distance = total_distance ** 0.5 
 
-    def select_action(self, state, explore=True):
+            for param, target_param in zip(self.perturbed_actor.parameters(), self.actor_target.parameters()):
+                noise = torch.normal(0, stddev, size=param.data.size())
+                
+                if total_distance > delta:
+                    noise = noise / alpha
+                else:
+                    noise = noise * alpha
+
+                param.data.copy_(target_param.data + noise)
+
+    def select_action(self, state, explore=True, delta=0.6, min_explore_prob=0.1):
+        with torch.no_grad():
+            policy_dist = 0.0
+            for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
+                policy_dist += torch.norm(param.data - target_param.data).item() ** 2
+            policy_dist = policy_dist ** 0.5
+
+        explore_prob = min_explore_prob if policy_dist < delta else 1.0
+
+        if explore and np.random.rand() > explore_prob:
+            explore = False
+
         state_tensor = torch.FloatTensor(state.reshape(1, -1))
+
         if explore:
-            self.add_parameter_noise(stddev=0.1)
-        action = self.actor(state_tensor).detach().numpy()[0]
+            self.perturb_actor(stddev=0.5)
+            action = self.perturbed_actor(state_tensor).detach().numpy()[0]
+        else:
+            action = self.actor(state_tensor).detach().numpy()[0]
+
         return np.clip(action, -self.max_action, self.max_action)
+
 
     def train(self, batch_size=64):
         if len(self.replay_buffer) < batch_size:
@@ -148,16 +176,17 @@ def main():
 
     agent = DDPGAgent(state_dim, action_dim, max_action)
 
-    episodes = 250
+    episodes = 500
     reward_log = []
 
     for ep in range(episodes):
+
         state, _ = env.reset()
         total_reward = 0
         done = False
 
         while not done:
-            action = agent.select_action(state)
+            action = agent.select_action(state, explore=True)
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
 
@@ -170,6 +199,7 @@ def main():
 
         if (ep + 1) % 10 == 0:
             print(f"Episode {ep + 1}, Total Reward: {total_reward:.2f}")
+
 
     os.makedirs("logs", exist_ok=True)
     np.save("logs/ddpg_noisy_pendulum_rewards.npy", np.array(reward_log))

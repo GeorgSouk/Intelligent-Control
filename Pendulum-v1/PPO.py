@@ -54,7 +54,7 @@ def main():
     seeder = SeedSetter(seed)
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)
-    env = NoisyObsWrapper(env, noise_scale=0.5)  # Match RND noise scale
+    env = NoisyObsWrapper(env, noise_scale=0.5)  
     monitored_env = RewardMonitor(env)
 
     vec_env = DummyVecEnv([lambda: monitored_env])
