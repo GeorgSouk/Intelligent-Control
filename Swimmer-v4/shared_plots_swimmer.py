@@ -12,11 +12,8 @@ def load_shared_rewards():
     rewards = {}
 
     paths = {
-        "PPO + RND": "ppo_rnd_total_pendulum_rewards.npy",
-        "PPO (Noisy Obs)": "ppo_noisy_pendulum_rewards.npy",
-        "Q-learning (Noisy)": "q_learning_noisy_pendulum_rewards.npy",
-        "Entropy Q-learning (Noisy)": "entropy_q_learning_noisy_pendulum_rewards.npy",
-        "DDPG": "ddpg_noisy_pendulum_rewards.npy",
+        "PPO + RND": "ppo_rnd_total_swimmer_rewards.npy",
+        "DDPG": "ddpg_swimmer_rewards.npy",
     }
 
     for label, file_name in paths.items():

@@ -55,7 +55,7 @@ class NoisyObsWrapper(gym.ObservationWrapper):
 
     def observation(self, obs):
         noise = np.random.normal(0, self.noise_scale, size=obs.shape)
-        return obs + noise 
+        return obs + noise
 
 # ---------- Discretization ----------
 def create_bins():
@@ -118,7 +118,7 @@ def train_entropy_q_learning(episodes=500):
 
 # ---------- Main ----------
 def main():
-    rewards = train_entropy_q_learning(episodes=500)
+    rewards = train_entropy_q_learning()
 
     os.makedirs("logs", exist_ok=True)
     np.save("logs/entropy_q_learning_noisy_pendulum_rewards.npy", np.array(rewards))

@@ -12,7 +12,7 @@ def evaluate_agent(model_path="ppo_rnd_pendulum", vecnorm_path="ppo_rnd_pendulum
         env = VecNormalize.load(vecnorm_path, env)
         env.training = False
         env.norm_reward = False
-        print("✅ Loaded VecNormalize statistics.")
+        print("Loaded VecNormalize statistics.")
 
     model = PPO.load(model_path)
 
@@ -33,7 +33,7 @@ def evaluate_agent(model_path="ppo_rnd_pendulum", vecnorm_path="ppo_rnd_pendulum
 
     env.close()
     avg_reward = np.mean(all_rewards)
-    print(f"\n🎯 Average reward over {episodes} episodes: {avg_reward:.2f}")
+    print(f"\nAverage reward over {episodes} episodes: {avg_reward:.2f}")
 
 if __name__ == "__main__":
     evaluate_agent()

@@ -75,7 +75,7 @@ def main():
 
     print("Saving reward logs...")
     os.makedirs("logs", exist_ok=True)
-    np.save("logs/ppo_noisy_baseline_rewards.npy", np.array(rewards))
+    np.save("logs/ppo_noisy_pendulum_rewards.npy", np.array(rewards))
     print("Saved to logs/ppo_noisy_baseline_rewards.npy")
 
 if __name__ == "__main__":

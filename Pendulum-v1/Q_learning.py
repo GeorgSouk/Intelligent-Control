@@ -23,7 +23,7 @@ def run_q_learning_noisy_pendulum(episodes=500):
     seeder.apply_to_env(env)
     env = NoisyObsWrapper(env, noise_scale=0.5)
 
-    action_bins = np.linspace(-2.0, 2.0, 5)  # Discretized actions
+    action_bins = np.linspace(-2.0, 2.0, 5)  
     n_actions = len(action_bins)
 
     obs_bins = [
@@ -39,7 +39,7 @@ def run_q_learning_noisy_pendulum(episodes=500):
     alpha = 0.1
     gamma = 0.99
     epsilon = 1.0
-    decay = 0.995
+    decay = 0.998
 
     rewards = []
 
@@ -87,7 +87,7 @@ def plot_rewards(rewards):
 # ---------- Main ----------
 def main():
     print("Running Q-learning on Noisy Pendulum-v1...")
-    rewards = run_q_learning_noisy_pendulum(episodes=500)
+    rewards = run_q_learning_noisy_pendulum()
 
     os.makedirs("logs", exist_ok=True)
     np.save("logs/q_learning_noisy_pendulum_rewards.npy", np.array(rewards))
