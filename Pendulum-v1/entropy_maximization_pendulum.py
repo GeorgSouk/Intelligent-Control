@@ -64,7 +64,7 @@ def create_bins():
         np.linspace(-1.0, 1.0, 10),   
         np.linspace(-8.0, 8.0, 10)    
     ]
-    action_bins = np.linspace(-2.0, 2.0, 5)  # Discretized actions
+    action_bins = np.linspace(-2.0, 2.0, 5) 
     return obs_bins, action_bins
 
 def discretize_obs(obs, obs_bins):

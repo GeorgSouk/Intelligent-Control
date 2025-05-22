@@ -31,7 +31,7 @@ def plot_all_rewards_shared(rewards_dict):
         plt.plot(smooth(rewards), label=label)
     plt.xlabel("Episode")
     plt.ylabel("Smoothed Total Reward")
-    plt.title("Comparison of RL Algorithms on Noisy Pendulum-v1")
+    plt.title("Comparison of RL Algorithms on Swimmer-v4")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()

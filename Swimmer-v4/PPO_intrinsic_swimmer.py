@@ -132,7 +132,7 @@ def main():
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
     model = PPO("MlpPolicy", vec_env, verbose=1, learning_rate=6e-4, n_steps=4096, batch_size=256, n_epochs=20, ent_coef=0.01)
-    model.learn(total_timesteps=300_000)
+    model.learn(total_timesteps=500_000)
 
     model.save("ppo_rnd_swimmer")
     vec_env.save("ppo_rnd_swimmer_vecnormalize.pkl")
@@ -140,9 +140,9 @@ def main():
     plot_rewards(base_env.episode_rewards, base_env.extrinsic_rewards, base_env.intrinsic_rewards)
 
     os.makedirs("logs", exist_ok=True)
-    np.save("logs/ppo_rnd_total_rewards.npy", np.array(base_env.episode_rewards))
-    np.save("logs/ppo_rnd_extrinsic_rewards.npy", np.array(base_env.extrinsic_rewards))
-    np.save("logs/ppo_rnd_intrinsic_rewards.npy", np.array(base_env.intrinsic_rewards))
+    np.save("logs/ppo_rnd_total_swimmer_rewards.npy", np.array(base_env.episode_rewards))
+    np.save("logs/ppo_rnd_extrinsic_swimmer_rewards.npy", np.array(base_env.extrinsic_rewards))
+    np.save("logs/ppo_rnd_intrinsic_swimmer_rewards.npy", np.array(base_env.intrinsic_rewards))
     print("Training complete. Saved model and reward logs.")
 
 if __name__ == "__main__":

@@ -22,9 +22,10 @@ class RNDModel(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-# ---------- RND Wrapper ----------
+# ---------- RND Wrapper (Potential-Based Shaping) ----------
 class RNDWrapper(Wrapper):
-    def __init__(self, env, rnd_target, rnd_predictor, optimizer, initial_beta=0.1, final_beta=0.01, decay_rate=1e-4):
+    def __init__(self, env, rnd_target, rnd_predictor, optimizer,
+                 initial_beta=0.1, final_beta=0.01, decay_rate=1e-4, gamma=0.99):
         super().__init__(env)
         self.rnd_target = rnd_target
         self.rnd_predictor = rnd_predictor
@@ -32,6 +33,7 @@ class RNDWrapper(Wrapper):
         self.decay_rate = decay_rate
         self.initial_beta = initial_beta
         self.final_beta = final_beta
+        self.gamma = gamma
         self.episode_count = 0
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.episode_rewards = []
@@ -56,44 +58,50 @@ class RNDWrapper(Wrapper):
         done = terminated or truncated
 
         obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
-        noise = torch.randn_like(obs_tensor) * 0.5
-        obs_tensor_noisy = obs_tensor + noise
-
         with torch.no_grad():
-            target_feature = self.rnd_target(obs_tensor)
-        predicted_feature = self.rnd_predictor(obs_tensor_noisy)
+            target_feature_s = self.rnd_target(obs_tensor)
+        predicted_feature_s = self.rnd_predictor(obs_tensor)
+        Phi_s = torch.mean((predicted_feature_s - target_feature_s) ** 2)
 
-        intrinsic_reward = torch.mean((predicted_feature - target_feature) ** 2).item()
+        obs_next, extrinsic_reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
 
-        beta = self.final_beta + (self.initial_beta - self.final_beta) * np.exp(-self.decay_rate * self.episode_count)
+        obs_next_tensor = torch.tensor(obs_next, dtype=torch.float32).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            target_feature_s_next = self.rnd_target(obs_next_tensor)
+        predicted_feature_s_next = self.rnd_predictor(obs_next_tensor)
+        Phi_s_next = torch.mean((predicted_feature_s_next - target_feature_s_next) ** 2)
 
-        loss = torch.mean((predicted_feature - target_feature) ** 2)
+        shaping_reward = self.gamma * Phi_s_next.item() - Phi_s.item()
+
+        loss = Phi_s
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        total_reward = extrinsic_reward + beta * intrinsic_reward
+        beta = self.final_beta + (self.initial_beta - self.final_beta) * np.exp(-self.decay_rate * self.episode_count)
+        total_reward = extrinsic_reward + beta * shaping_reward
 
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
-        self.current_intrinsic += intrinsic_reward
+        self.current_intrinsic += shaping_reward
 
         if done:
             self.episode_rewards.append(self.current_episode_reward)
             self.extrinsic_rewards.append(self.current_extrinsic)
             self.intrinsic_rewards.append(self.current_intrinsic)
 
-        return obs, total_reward, terminated, truncated, info
+        return obs_next, total_reward, terminated, truncated, info
 
 # ---------- Plotting ----------
 def plot_rewards(total, extrinsic, intrinsic):
     plt.figure(figsize=(10, 5))
     plt.plot(total, label="Total Reward")
     plt.plot(extrinsic, label="Extrinsic Reward")
-    plt.plot(intrinsic, label="Intrinsic Reward")
+    plt.plot(intrinsic, label="Intrinsic (Shaping) Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.title("Training Progress with RND")
+    plt.title("Training Progress with Potential-Based RND")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -115,17 +123,17 @@ def main():
 
     optimizer = optim.Adam(rnd_predictor.parameters(), lr=1e-4)
 
-    base_env = RNDWrapper(env, rnd_target, rnd_predictor, optimizer)
+    base_env = RNDWrapper(env, rnd_target, rnd_predictor, optimizer, gamma=0.99)
     vec_env = DummyVecEnv([lambda: base_env])
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
-    print("Training PPO + RND")
+    print("Training PPO with Potential-Based RND")
     model = PPO("MlpPolicy", vec_env, verbose=1, tensorboard_log="./ppo_rnd_tensorboard/",
                 learning_rate=6e-4, n_steps=2048, batch_size=64, n_epochs=10)
     model.learn(total_timesteps=100_000)
 
-    model.save("ppo_rnd_pendulum")  
-    vec_env.save("ppo_rnd_pendulum_vecnormalize.pkl")  
+    model.save("ppo_rnd_pendulum")
+    vec_env.save("ppo_rnd_pendulum_vecnormalize.pkl")
     print("Plotting results...")
     plot_rewards(base_env.episode_rewards, base_env.extrinsic_rewards, base_env.intrinsic_rewards)
     os.makedirs("logs", exist_ok=True)

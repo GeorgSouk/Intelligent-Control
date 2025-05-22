@@ -66,8 +66,6 @@ def main():
     model.learn(total_timesteps=100_000)
 
     model.save("ppo_noisy_baseline")
-
-    # Get reward logs (excluding first dummy reward on reset)
     rewards = monitored_env.episode_rewards[1:]
 
     print("Plotting results...")
