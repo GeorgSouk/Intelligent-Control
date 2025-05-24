@@ -40,6 +40,7 @@ class RNDWrapper(Wrapper):
         self.final_beta = final_beta
         self.episode_count = 0
         self.total_steps = 0
+        self.gamma = 0.99
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.episode_rewards = []
         self.extrinsic_rewards = []
@@ -63,44 +64,44 @@ class RNDWrapper(Wrapper):
 
         return obs, info
 
+    
+    
     def step(self, action):
-        obs, extrinsic_reward, terminated, truncated, info = self.env.step(action)
-        done = terminated or truncated
-        self.current_steps += 1
-        self.total_steps += 1
-
-        obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
-
+        obs_tensor = torch.tensor(self.env.unwrapped.state if hasattr(self.env.unwrapped, 'state') else np.zeros(self.env.observation_space.shape), dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            target_feature = self.rnd_target(obs_tensor)
-        predicted_feature = self.rnd_predictor(obs_tensor)
+            target_feature_s = self.rnd_target(obs_tensor)
+        predicted_feature_s = self.rnd_predictor(obs_tensor)
+        Phi_s = torch.mean((predicted_feature_s - target_feature_s) ** 2)
 
-        intrinsic_reward = torch.mean((predicted_feature - target_feature) ** 2).item()
+        obs_next, extrinsic_reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
 
-        if self.total_steps < 40000:
-            beta = self.initial_beta
-        else:
-            beta = self.final_beta + (self.initial_beta - self.final_beta) * np.exp(-self.decay_rate * (self.total_steps - 40000))
+        obs_next_tensor = torch.tensor(obs_next, dtype=torch.float32).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            target_feature_s_next = self.rnd_target(obs_next_tensor)
+        predicted_feature_s_next = self.rnd_predictor(obs_next_tensor)
+        Phi_s_next = torch.mean((predicted_feature_s_next - target_feature_s_next) ** 2)
 
-        loss = torch.mean((predicted_feature - target_feature) ** 2)
+        shaping_reward = self.gamma * Phi_s_next.item() - Phi_s.item()
+
+        loss = Phi_s
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        usage_bonus = 0.01 * np.sum(np.abs(action))
-        joint_balance_bonus = -0.05 * np.abs(np.abs(action[0]) - np.abs(action[1]))
-        total_reward = extrinsic_reward + beta * intrinsic_reward + usage_bonus + joint_balance_bonus
+        beta = self.final_beta + (self.initial_beta - self.final_beta) * np.exp(-self.decay_rate * self.episode_count)
+        total_reward = extrinsic_reward + beta * shaping_reward
 
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
-        self.current_intrinsic += intrinsic_reward
+        self.current_intrinsic += shaping_reward
 
         if done:
             self.episode_rewards.append(self.current_episode_reward)
             self.extrinsic_rewards.append(self.current_extrinsic)
             self.intrinsic_rewards.append(self.current_intrinsic)
 
-        return obs, total_reward, terminated, truncated, info
+        return obs_next, total_reward, terminated, truncated, info
 
 def plot_rewards(total, extrinsic, intrinsic):
     plt.figure(figsize=(10, 5))

@@ -1,3 +1,4 @@
+
 import gymnasium as gym
 import torch
 import torch.nn as nn
@@ -40,6 +41,7 @@ class RNDWrapper(Wrapper):
         self.extrinsic_rewards = []
         self.intrinsic_rewards = []
         self.reset_rewards()
+        self.last_obs = None  
 
     def reset_rewards(self):
         self.current_episode_reward = 0.0
@@ -51,13 +53,11 @@ class RNDWrapper(Wrapper):
         obs, info = result if isinstance(result, tuple) else (result, {})
         self.reset_rewards()
         self.episode_count += 1
+        self.last_obs = obs  
         return obs, info
 
     def step(self, action):
-        obs, extrinsic_reward, terminated, truncated, info = self.env.step(action)
-        done = terminated or truncated
-
-        obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device)
+        obs_tensor = torch.tensor(self.last_obs, dtype=torch.float32).unsqueeze(0).to(self.device)  
         with torch.no_grad():
             target_feature_s = self.rnd_target(obs_tensor)
         predicted_feature_s = self.rnd_predictor(obs_tensor)
@@ -85,6 +85,8 @@ class RNDWrapper(Wrapper):
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
         self.current_intrinsic += shaping_reward
+
+        self.last_obs = obs_next  
 
         if done:
             self.episode_rewards.append(self.current_episode_reward)
