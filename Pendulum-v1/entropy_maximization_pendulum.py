@@ -49,7 +49,7 @@ class EntropyQAgent:
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
-    def __init__(self, env, noise_scale=0.5):
+    def __init__(self, env, noise_scale=5.0):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -80,7 +80,7 @@ def train_entropy_q_learning(episodes=500):
 
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)    
-    env = NoisyObsWrapper(env, noise_scale=0.5)
+    env = NoisyObsWrapper(env)
     obs_bins, action_bins = create_bins()
 
     state_shape = tuple(len(b) for b in obs_bins)

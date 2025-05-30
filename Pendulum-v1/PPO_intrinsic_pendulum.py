@@ -16,8 +16,8 @@ class RNDModel(nn.Module):
     def __init__(self, input_dim, output_dim=128):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(input_dim, 64), nn.ReLU(),
-            nn.Linear(64, output_dim)
+            nn.Linear(input_dim, 128), nn.ReLU(),
+            nn.Linear(128, output_dim)
         )
 
     def forward(self, x):
@@ -25,23 +25,20 @@ class RNDModel(nn.Module):
 
 # ---------- RND Wrapper (Potential-Based Shaping) ----------
 class RNDWrapper(Wrapper):
-    def __init__(self, env, rnd_target, rnd_predictor, optimizer,
-                 initial_beta=0.1, final_beta=0.01, decay_rate=1e-4, gamma=0.99):
+    def __init__(self, env, rnd_target, rnd_predictor, optimizer,beta = 1.0, gamma=0.99):
         super().__init__(env)
         self.rnd_target = rnd_target
         self.rnd_predictor = rnd_predictor
         self.optimizer = optimizer
-        self.decay_rate = decay_rate
-        self.initial_beta = initial_beta
-        self.final_beta = final_beta
         self.gamma = gamma
+        self.beta = beta
         self.episode_count = 0
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.episode_rewards = []
         self.extrinsic_rewards = []
         self.intrinsic_rewards = []
         self.reset_rewards()
-        self.last_obs = None  
+        self.last_obs = None 
 
     def reset_rewards(self):
         self.current_episode_reward = 0.0
@@ -53,11 +50,13 @@ class RNDWrapper(Wrapper):
         obs, info = result if isinstance(result, tuple) else (result, {})
         self.reset_rewards()
         self.episode_count += 1
-        self.last_obs = obs  
+        self.last_obs = obs
         return obs, info
 
     def step(self, action):
         obs_tensor = torch.tensor(self.last_obs, dtype=torch.float32).unsqueeze(0).to(self.device)  
+        noise = torch.randn_like(obs_tensor) * 5.0
+        obs_tensor = obs_tensor + noise
         with torch.no_grad():
             target_feature_s = self.rnd_target(obs_tensor)
         predicted_feature_s = self.rnd_predictor(obs_tensor)
@@ -72,22 +71,19 @@ class RNDWrapper(Wrapper):
         predicted_feature_s_next = self.rnd_predictor(obs_next_tensor)
         Phi_s_next = torch.mean((predicted_feature_s_next - target_feature_s_next) ** 2)
 
-        shaping_reward = self.gamma * Phi_s_next.item() - Phi_s.item()
+        shaping_reward = abs(self.gamma * Phi_s_next.item() - Phi_s.item())
 
         loss = Phi_s
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        beta = self.final_beta + (self.initial_beta - self.final_beta) * np.exp(-self.decay_rate * self.episode_count)
-        total_reward = extrinsic_reward + beta * shaping_reward
+        total_reward = extrinsic_reward + self.beta * shaping_reward
 
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
         self.current_intrinsic += shaping_reward
-
-        self.last_obs = obs_next  
-
+        self.last_obs = obs_next
+  
         if done:
             self.episode_rewards.append(self.current_episode_reward)
             self.extrinsic_rewards.append(self.current_extrinsic)

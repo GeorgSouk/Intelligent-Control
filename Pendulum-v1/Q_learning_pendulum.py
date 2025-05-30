@@ -6,7 +6,7 @@ from seed_set import SeedSetter
 
 # ---------- Noisy Observation Wrapper ----------
 class NoisyObsWrapper(gym.ObservationWrapper):
-    def __init__(self, env, noise_scale=0.5):
+    def __init__(self, env, noise_scale=5.0):
         super().__init__(env)
         self.noise_scale = noise_scale
 
@@ -21,7 +21,7 @@ def run_q_learning_noisy_pendulum(episodes=500):
 
     env = gym.make("Pendulum-v1")
     seeder.apply_to_env(env)
-    env = NoisyObsWrapper(env, noise_scale=0.5)
+    env = NoisyObsWrapper(env)
 
     action_bins = np.linspace(-2.0, 2.0, 5)  
     n_actions = len(action_bins)
