@@ -54,41 +54,49 @@ class RNDWrapper(Wrapper):
         return obs, info
 
     def step(self, action):
+        # 1) Convert last_obs to a torch tensor + add noise:
         obs_tensor = torch.tensor(self.last_obs, dtype=torch.float32).unsqueeze(0).to(self.device)  
         noise = torch.randn_like(obs_tensor) * 5.0
         obs_tensor = obs_tensor + noise
+        
+        # 2) Compute feature of current state by target f and predictor f̂:
         with torch.no_grad():
             target_feature_s = self.rnd_target(obs_tensor)
         predicted_feature_s = self.rnd_predictor(obs_tensor)
         Phi_s = torch.mean((predicted_feature_s - target_feature_s) ** 2)
-
+        
+        # 3) Actually take a step in the underlying environment:
         obs_next, extrinsic_reward, terminated, truncated, info = self.env.step(action)
         done = terminated or truncated
-
+        
+        # 4) Convert next observation to tensor and compute features at s_{t+1}:
         obs_next_tensor = torch.tensor(obs_next, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             target_feature_s_next = self.rnd_target(obs_next_tensor)
         predicted_feature_s_next = self.rnd_predictor(obs_next_tensor)
         Phi_s_next = torch.mean((predicted_feature_s_next - target_feature_s_next) ** 2)
-
+        
+        # 5) Compute the RND “potential‐based shaping reward”:
         shaping_reward = abs(self.gamma * Phi_s_next.item() - Phi_s.item())
-
+        
+        # 6) Update the predictor network f̂ by doing a gradient step to minimize Phi_s:
         loss = Phi_s
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        
+        # 7) Combine extrinsic + intrinsic and update running totals:
         total_reward = extrinsic_reward + self.beta * shaping_reward
-
         self.current_episode_reward += total_reward
         self.current_extrinsic += extrinsic_reward
         self.current_intrinsic += shaping_reward
         self.last_obs = obs_next
-  
+        # 8) If this step ended the episode, save per‐episode reward stats:
         if done:
             self.episode_rewards.append(self.current_episode_reward)
             self.extrinsic_rewards.append(self.current_extrinsic)
             self.intrinsic_rewards.append(self.current_intrinsic)
-
+        # 9) Return what PPO expects: (next_obs, combined_reward, done, info)
         return obs_next, total_reward, terminated, truncated, info
 
 # ---------- Plotting ----------
