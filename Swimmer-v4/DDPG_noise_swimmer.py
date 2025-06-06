@@ -8,6 +8,7 @@ import random
 import matplotlib.pyplot as plt
 from collections import deque
 from seed_set import SeedSetter
+from gymnasium.wrappers import TimeLimit
 
 # --------------------- Replay Buffer ---------------------
 class ReplayBuffer:
@@ -156,7 +157,7 @@ def main():
     seed = 42
     seeder = SeedSetter(seed)
 
-    env = gym.make("Swimmer-v4")
+    env = TimeLimit(gym.make("Swimmer-v4"), max_episode_steps=1500)
     seeder.apply_to_env(env)
 
 

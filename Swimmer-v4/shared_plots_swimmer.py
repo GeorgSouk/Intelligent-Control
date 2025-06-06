@@ -14,6 +14,7 @@ def load_shared_rewards():
     paths = {
         "PPO + RND": "ppo_rnd_total_swimmer_rewards.npy",
         "DDPG": "ddpg_swimmer_rewards.npy",
+        "PPO": "ppo_swimmer_rewards.npy",
     }
 
     for label, file_name in paths.items():
